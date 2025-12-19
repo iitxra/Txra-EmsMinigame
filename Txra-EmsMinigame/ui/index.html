@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Txra Minigame</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800&display=swap');
+        
+        @font-face {
+            font-family: 'pdown';
+            src: url('https://unpkg.com/pdown@1.0.0/fonts/pdown.ttf') format('truetype');
+        }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: transparent;
+            font-family: 'Cairo', 'Arial', sans-serif;
+            user-select: none;
+            display: none;
+        }
+        
+        .container {
+            position: absolute;
+            top: 60%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 380px;
+            background: transparent;
+            border-radius: 25px;
+            padding: 12px;
+            box-sizing: border-box;
+            color: white;
+            text-align: center;
+            border: 3px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        .Txras-container {
+            display: flex;
+            justify-content: space-between;
+            margin: 12px 0;
+        }
+        
+        .Txra-box {
+            width: 48px;
+            height: 48px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+        
+        .Txra {
+            font-size: 22px;
+            text-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+        }
+        
+        .progress-counter {
+            font-size: 15px;
+            margin: 8px 0;
+            font-family: 'pdown', sans-serif;
+            color: #98753d;
+        }
+        
+        .Txra-box.active {
+            background: rgba(152, 117, 61, 0.3);
+            border: 2px solid #98753d;
+            transform: scale(1.05);
+        }
+        
+        .Txra-box.completed {
+            background: rgba(152, 117, 61, 0.3);
+            border: 2px solid #98753d;
+        }
+        
+        .timer-container {
+            width: 100%;
+            height: 5px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        
+        .timer-bar {
+            height: 100%;
+            width: 100%;
+            background: #98753d;
+            transition: width 0.1s linear;
+        }
+        
+        .timer-bar.warning {
+            background: #f39c12;
+        }
+        
+        .timer-bar.danger {
+            background: #e74c3c;
+        }
+        
+        .result {
+            font-size: 20px;
+            margin-top: 8px;
+            display: none;
+            font-family: 'pdown', sans-serif;
+            animation: pulse 0.5s infinite alternate;
+        }
+        
+        @keyframes pulse {
+            from { transform: scale(1); }
+            to { transform: scale(1.05); }
+        }
+        
+        .success {
+            color: #2ecc71;
+        }
+        
+        .failed {
+            color: #e74c3c;
+        }
+        
+        audio { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="Txras-container" id="TxrasContainer"></div>
+        <div class="progress-counter" id="progressCounter">0/5</div>
+        <div class="timer-container">
+            <div class="timer-bar" id="timerBar"></div>
+        </div>
+        <div class="result" id="result"></div>
+    </div>
+
+    <audio id="correctSound" src="correct.mp3"></audio>
+    <audio id="failSound" src="fail.mp3"></audio>
+
+    <script>
+        const TxrasContainer = document.getElementById('TxrasContainer');
+        const timerBar = document.getElementById('timerBar');
+        const resultEl = document.getElementById('result');
+        const progressCounter = document.getElementById('progressCounter');
+        const correctSound = document.getElementById('correctSound');
+        const failSound = document.getElementById('failSound');
+        let TxraBoxes = [];
+        let timeLimit = 10;
+        
+        window.addEventListener('message', (event) => {
+            const data = event.data;
+            
+            if (data.action === "showMinigame") {
+                startMinigame(data.sequence, data.timeLimit);
+                document.body.style.display = 'block';
+            } else if (data.action === "correctInput") {
+                updateTxras(data.currentCount, data.totalTxras);
+            } else if (data.action === "updateTimer") {
+                updateTimer(data.timeLeft, data.percentage);
+            } else if (data.action === "finishMinigame") {
+                showResult(data.success);
+            } else if (data.action === "hideMinigame") {
+                document.body.style.display = 'none';
+            } else if (data.action === "playSound") {
+                if (data.sound === "correct") correctSound.play();
+                if (data.sound === "fail") failSound.play();
+            }
+        });
+        
+        function startMinigame(sequence, limit) {
+            TxrasContainer.innerHTML = '';
+            TxraBoxes = [];
+            resultEl.style.display = 'none';
+            timeLimit = limit;
+            progressCounter.textContent = `0/${sequence.length}`;
+            
+            sequence.forEach((Txra, i) => {
+                const TxraBox = document.createElement('div');
+                TxraBox.className = 'Txra-box';
+                TxraBox.innerHTML = `<div class="Txra">${Txra.label}</div>`;
+                TxrasContainer.appendChild(TxraBox);
+                TxraBoxes.push(TxraBox);
+            });
+            
+            timerBar.style.width = '100%';
+            timerBar.className = 'timer-bar';
+            TxraBoxes[0]?.classList.add('active');
+        }
+        
+        function updateTxras(currentCount, totalTxras) {
+            progressCounter.textContent = `${currentCount}/${totalTxras}`;
+            
+            if (currentCount > 0) {
+                TxraBoxes[currentCount - 1].classList.remove('active');
+                TxraBoxes[currentCount - 1].classList.add('completed');
+            }
+            
+            if (currentCount < TxraBoxes.length) {
+                TxraBoxes[currentCount].classList.add('active');
+            }
+        }
+        
+        function updateTimer(timeLeft, percentage) {
+            timerBar.style.width = `${percentage}%`;
+            
+            timerBar.classList.remove('warning', 'danger');
+            if (percentage < 20) {
+                timerBar.classList.add('danger');
+            } else if (percentage < 50) {
+                timerBar.classList.add('warning');
+            }
+        }
+        
+        function showResult(success) {
+            resultEl.style.display = 'block';
+            resultEl.textContent = success ? 'SUCCESS' : 'FAILED';
+            resultEl.className = success ? 'result success' : 'result failed';
+        }
+    </script>
+</body>
+</html>
